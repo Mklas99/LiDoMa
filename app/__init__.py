@@ -1,0 +1,3 @@
+"""
+Docker Manager application package.
+"""

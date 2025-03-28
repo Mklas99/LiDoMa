@@ -1,23 +1,43 @@
+"""
+Main entry point for the Docker Manager application.
+"""
 import sys
 import os
+from pathlib import Path
+
+# Ensure the project root is in the Python path
+# This helps Python find the 'app' package
+root_dir = Path(__file__).parent
+if str(root_dir) not in sys.path:
+    sys.path.append(str(root_dir))
+
+from app.ui.viewmodels import MainViewModel
+from app.core.services.service_locator import ServiceLocator
+from app.ui.main_window import DockerManagerApp
 from PyQt5.QtWidgets import QApplication
-from ui import DockerManagerApp
 
 def main():
-    """Main entry point for the Docker Manager application."""
     app = QApplication(sys.argv)
     
-    # Load style from QSS file
-    style_path = os.path.join(os.path.dirname(__file__), "ui", "style.qss")
     try:
-        with open(style_path, "r") as f:
-            app.setStyleSheet(f.read())
+        # Initialize services
+        service_locator = ServiceLocator()
+        docker_service = service_locator.get_docker_service()
+        
+        # Create main view model with the docker service
+        main_vm = MainViewModel(docker_service)
+        
+        # Create and show main window with main_vm
+        window = DockerManagerApp(main_vm)
+        window.show()
+        
+        sys.exit(app.exec_())
     except Exception as e:
-        print(f"Error loading style: {e}")
-    
-    window = DockerManagerApp()
-    window.show()
-    sys.exit(app.exec_())
+        from PyQt5.QtWidgets import QMessageBox
+        error_msg = f"Error starting application: {str(e)}"
+        print(error_msg)
+        QMessageBox.critical(None, "Application Error", error_msg)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
