@@ -39,6 +39,10 @@ from app.ui.components.log_handler import QtLogHandler
 # Add this import at the top of the file
 from app.ui.theme_manager import ThemeManager
 
+# Add these imports at the top of the file
+import logging
+from app.core.utils.logging_config import LoggingConfig
+
 # Configure logging
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
@@ -114,6 +118,9 @@ class DockerManagerApp(QMainWindow):
         
         # Check Docker availability after a short delay
         QTimer.singleShot(1500, self.check_docker_connection)
+
+        # Initialize logging configuration
+        LoggingConfig.apply_log_level_from_settings()
 
     def init_ui(self):
         """Initialize the UI components."""        

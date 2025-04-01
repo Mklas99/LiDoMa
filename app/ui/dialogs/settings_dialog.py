@@ -3,6 +3,8 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                            QCheckBox, QLabel, QSpinBox, QComboBox, QDialogButtonBox)
 from PyQt5.QtCore import Qt, QSettings
 from app.ui.theme_manager import ThemeManager
+from app.core.utils.logging_config import LoggingConfig
+import logging
 
 class SettingsDialog(QDialog):
     """Dialog for application settings."""
@@ -67,7 +69,7 @@ class SettingsDialog(QDialog):
         
         # Log settings
         self.log_level = QComboBox()
-        self.log_level.addItems(["Info", "Debug", "Warning", "Error"])
+        self.log_level.addItems(["Debug", "Info", "Warning", "Error"])
         layout.addRow("Log Level:", self.log_level)
         
         self.max_log_entries = QSpinBox()
@@ -159,7 +161,12 @@ class SettingsDialog(QDialog):
         """Save settings to QSettings."""
         # General tab
         self.settings.setValue("checkUpdates", self.check_updates.isChecked())
-        self.settings.setValue("logLevel", self.log_level.currentText())
+        
+        # Get old log level for comparison
+        old_log_level = self.settings.value("logLevel", "Info")
+        new_log_level = self.log_level.currentText()
+        
+        self.settings.setValue("logLevel", new_log_level)
         self.settings.setValue("maxLogEntries", self.max_log_entries.value())
         
         # Docker tab
@@ -172,6 +179,11 @@ class SettingsDialog(QDialog):
         new_theme = self.theme.currentText()
         self.settings.setValue("theme", new_theme)
         self.settings.setValue("fontSize", self.font_size.value())
+        
+        # Apply log level change if needed
+        if old_log_level != new_log_level:
+            LoggingConfig.set_log_level(new_log_level)
+            logging.info(f"Log level changed from {old_log_level} to {new_log_level}")
         
         # Apply theme if changed - ensure it's fully applied
         if old_theme != new_theme:

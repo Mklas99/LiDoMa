@@ -2,7 +2,7 @@
 Log display widget for the application.
 """
 from PyQt5.QtWidgets import QTextEdit, QWidget
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QSettings
 from PyQt5.QtGui import QFont, QTextCursor
 
 class LogWidget(QTextEdit):
@@ -17,8 +17,9 @@ class LogWidget(QTextEdit):
         font = QFont("Consolas", 9)
         self.setFont(font)
         
-        # Maximum number of log lines to keep (to avoid memory issues)
-        self.max_lines = 1000
+        # Load max lines from settings
+        settings = QSettings("LiDoMa", "DockerManager")
+        self.max_lines = settings.value("maxLogEntries", 1000, type=int)
     
     def append(self, text: str):
         """Append text to the log with automatic scrolling and line limiting."""
@@ -39,3 +40,8 @@ class LogWidget(QTextEdit):
     def clear(self):
         """Clear the log content."""
         super().clear()
+    
+    def update_max_lines(self):
+        """Update max lines from settings."""
+        settings = QSettings("LiDoMa", "DockerManager")
+        self.max_lines = settings.value("maxLogEntries", 1000, type=int)

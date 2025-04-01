@@ -6,6 +6,9 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QLabel, QPushButton, QMessageBox, QTextEdit, QHBoxLayout)
 from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal, pyqtSlot, PYQT_VERSION_STR, QT_VERSION_STR
 
+# Add this import at the top
+from app.core.utils.logging_config import LoggingConfig
+
 # Configure logging
 logging.basicConfig(level=logging.INFO,
                    format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
@@ -182,6 +185,9 @@ def main():
     """Run the minimal debug version of the app."""
     print("Starting debug Docker Manager...")
     logger.info("Starting debug Docker Manager")
+    
+    # Apply log level from settings
+    LoggingConfig.apply_log_level_from_settings()
     
     app = QApplication(sys.argv)
     

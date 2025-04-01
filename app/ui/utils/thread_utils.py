@@ -4,11 +4,15 @@ import traceback
 import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from PyQt5.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
+from app.core.utils.logging_config import LoggingConfig
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, 
                     format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Apply log level from settings
+LoggingConfig.apply_log_level_from_settings()
 
 class WorkerSignals(QObject):
     """Defines the signals available from a running worker thread."""
