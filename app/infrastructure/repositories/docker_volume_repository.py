@@ -1,42 +1,38 @@
-from typing import List, Optional, Dict
+from typing import List, Optional
+import logging
+import json
+
 from app.domain.models import Volume
 from app.domain.repositories import VolumeRepository
 from app.infrastructure.docker_client import DockerClient, DockerCommandExecutor
-import json
 
 class DockerVolumeRepository(VolumeRepository):
     """Implementation of VolumeRepository using Docker SDK and CLI."""
     
     def __init__(self, docker_client: DockerClient):
         self.docker_client = docker_client
+        self.logger = logging.getLogger(__name__)
     
     def list_volumes(self, context: str = "default") -> List[Volume]:
-        """List all volumes."""
-        if context != "default":
-            return self._get_volumes_for_context(context)
-            
         try:
-            if not self.docker_client or not self.docker_client.client:
-                return []
-            
+            if context != "default":
+                return self._get_volumes_for_context(context)
+                
             volumes = self.docker_client.client.volumes.list()
             result = []
             
             for vol in volumes:
                 volume = Volume(
                     name=vol.name,
-                    driver=vol.attrs.get('Driver', 'local'),
-                    mountpoint=vol.attrs.get('Mountpoint', ''),
-                    labels=vol.attrs.get('Labels', {}),
-                    options=vol.attrs.get('Options', {}),
+                    driver=vol.attrs.get("Driver", "local"),
+                    mountpoint=vol.attrs.get("Mountpoint", ""),
                     context="default"
                 )
                 result.append(volume)
-                
+            
             return result
-                
         except Exception as e:
-            print(f"Error listing volumes: {str(e)}")
+            self.logger.error(f"Error listing volumes: {str(e)}")
             return []
         
     def get_volume(self, volume_name: str, context: str = "default") -> Optional[Volume]:
@@ -64,15 +60,22 @@ class DockerVolumeRepository(VolumeRepository):
     def remove_volume(self, volume_name: str, context: str = "default") -> bool:
         """Remove a volume."""
         try:
-            if not self.docker_client or not self.docker_client.client:
-                return False
+            if context != "default":
+                # Use CLI for non-default contexts
+                _, error = DockerCommandExecutor.run_command([
+                    "docker", "--context", context, "volume", "rm", volume_name
+                ])
+                return not error
                 
-            self.docker_client.client.volumes.get(volume_name).remove(force=True)
+            # Use SDK for default context
+            vol = self.docker_client.client.volumes.get(volume_name)
+            vol.remove()
             return True
         except Exception as e:
-            print(f"Error removing volume: {str(e)}")
+            self.logger.error(f"Error removing volume {volume_name}: {str(e)}")
             return False
         
+
     def create_volume(self, name: str, driver: str = "local", context: str = "default", **kwargs) -> bool:
         """Create a new volume."""
         try:
@@ -87,7 +90,9 @@ class DockerVolumeRepository(VolumeRepository):
             )
             return True
         except Exception as e:
-            print(f"Error creating volume: {str(e)}")
+            self.logger.error(f"Error creating volume {name}: {str(e)}")
+
+    def _get_volumes_for_context(self, context: str) -> List[Volume]:
             return False
             
     def _get_volumes_for_context(self, context: str) -> List[Volume]:

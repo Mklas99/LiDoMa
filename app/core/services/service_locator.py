@@ -52,7 +52,7 @@ class ServiceLocator:
         
         # Create services
         self.context_service = DockerContextServiceImpl()
-        self.compose_service = DockerComposeServiceImpl()
+        self.compose_service = DockerComposeServiceImpl()  # Is this used throughout the app?
         
         # Create application services
         self.container_service = ContainerService(self.container_repository)

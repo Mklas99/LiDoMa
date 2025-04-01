@@ -31,6 +31,12 @@ from app.ui.tabs.image_tab_view import ImageTabView
 from app.ui.tabs.volume_tab_view import VolumeTabView
 from app.ui.tabs.network_tab_view import NetworkTabView
 
+# Import our custom log handler
+from app.ui.components.log_handler import QtLogHandler
+
+# Add this import at the top of the file
+from app.ui.theme_manager import ThemeManager
+
 # Configure logging
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
@@ -69,6 +75,10 @@ class DockerManagerApp(QMainWindow):
         self.main_viewmodel.error_occurred.connect(self.error_handler.show_error)
         self.main_viewmodel.contexts_changed.connect(self.update_contexts)
         
+        # Connect the previously unused signals
+        self.main_viewmodel.refresh_started.connect(self.on_refresh_started)
+        self.main_viewmodel.refresh_completed.connect(self.handle_refresh_completed)
+        
         # Initialize thread tracking
         self.refresh_worker = None
         self.active_workers = []
@@ -77,6 +87,18 @@ class DockerManagerApp(QMainWindow):
         self.init_ui()
         self.setup_shortcuts()
         self.setup_menu()
+        
+        # Ensure theme is applied to all components
+        ThemeManager.refresh_widget_style(self)
+        
+        # Configure custom log handler to forward log messages to UI
+        self.log_handler = QtLogHandler()
+        self.log_handler.log_message.connect(self.append_to_log)
+        self.log_handler.setLevel(logging.INFO)
+        
+        # Add handler to root logger to capture all app logs
+        root_logger = logging.getLogger()
+        root_logger.addHandler(self.log_handler)
         
         # Log loading message
         logger.info("Docker Manager UI initialized")
@@ -213,6 +235,16 @@ class DockerManagerApp(QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close event to save settings and clean up threads."""        
+        
+        # Properly shutdown the logging handler before the Qt object is destroyed
+        if hasattr(self, 'log_handler'):
+            self.log_handler.shutdown()
+            
+        # Remove our custom log handler before closing (this is now redundant but kept for safety)
+        root_logger = logging.getLogger()
+        if hasattr(self, 'log_handler') and self.log_handler in root_logger.handlers:
+            root_logger.removeHandler(self.log_handler)
+        
         # Terminate any running worker threads
         for worker in self.active_workers:
             if worker.is_running:
@@ -235,60 +267,83 @@ class DockerManagerApp(QMainWindow):
         self.network_tab.filter_table(search_text)
 
     def log(self, message):
-        """Append a log message with timestamp."""        
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        formatted_message = f"[{timestamp}] {message}"
-        self.log_widget.append(formatted_message)
+        """Log a message through the logging system."""        
+        logger.info(message)
         
-        # Update status bar with last action
+        # Update status bar with last action (we still do this directly)
         self.status_label.setText(message.split('\n')[0])
+    
+    def append_to_log(self, formatted_message):
+        """Append a pre-formatted log message to the log widget."""        
+        self.log_widget.append(formatted_message)
 
     def refresh_data(self, refresh_contexts=True):
         """Starts the worker thread to refresh all Docker resource data."""
-        # Cancel any existing refresh operation
-        if self.refresh_worker and self.refresh_worker.is_running:
-            self.refresh_worker.terminate()
-            self.refresh_worker.wait()
-        
-        # Disable refresh button
+        # Update UI state first
         self.header_widget.disable_refresh()
         self.error_handler.clear_error()
         
-        # Clear tables
+        # Clear tables 
         self.container_tab.clear_table()
         self.image_tab.clear_table()
         self.volume_tab.clear_table()
         self.network_tab.clear_table()
         
-        # Also refresh Docker contexts if requested
-        if refresh_contexts:
-            self.load_contexts(from_refresh=True)
+        # Always refresh contexts first to ensure we have the latest Docker environments
+        self.log("Refreshing Docker contexts...")
         
-        # Show current context in log
-        current_context = self.context_selector.get_current_context()
-        if (current_context):
-            self.log(f"Refreshing Docker data for context: {current_context}...")
+        # Force a refresh of the Docker contexts cache
+        if hasattr(self.main_viewmodel, 'invalidate_contexts_cache'):
+            self.main_viewmodel.invalidate_contexts_cache()
+        
+        # Get updated contexts
+        contexts, error = self.main_viewmodel.get_docker_contexts()
+        if error:
+            self.error_handler.show_error(f"Error refreshing Docker contexts: {error}")
         else:
-            self.log("Refreshing Docker data...")
-            
-        self.status_label.setText("Refreshing...")
+            # Update context selector
+            current_context = self.context_selector.get_current_context()
+            self.context_selector.set_contexts(contexts, current_context)
+            self.log(f"Found {len(contexts)} Docker contexts")
         
-        # Create and start worker thread
+        # Now refresh the selected context's resources
+        current_context = self.context_selector.get_current_context()
+        
+        # Log refresh operation
+        if current_context == "All":
+            self.log("Refreshing Docker data across all contexts...")
+        else:
+            self.log(f"Refreshing Docker data for context: {current_context}...")
+            
+        self.status_label.setText("Refreshing resources...")
+        
+        # Perform refresh through viewmodel
         try:
-            print("Starting RefreshWorker thread...")
-            self.refresh_worker = RefreshWorker(self.docker_service)
-            self.refresh_worker.results_ready.connect(self.on_refresh_complete)
-            self.refresh_worker.signals.error.connect(self.on_refresh_error)
-            self.refresh_worker.signals.log.connect(self.log)
-            self.refresh_worker.start()
-            self.active_workers.append(self.refresh_worker)
-            print(f"RefreshWorker started - thread ID: {self.refresh_worker.currentThreadId()}")
+            self.main_viewmodel.refresh_all_resources()
+            return
         except Exception as e:
-            error_msg = f"Failed to start refresh worker: {str(e)}"
-            print(error_msg)
-            print(traceback.format_exc())
-            self.error_handler.show_error(error_msg)
-            self.header_widget.enable_refresh()
+            # Fall back to the original refresh logic
+            self.logger.error(f"Error using viewmodel refresh: {str(e)}")
+            
+            # Cancel any existing refresh operation
+            if self.refresh_worker and self.refresh_worker.is_running:
+                self.refresh_worker.terminate()
+                self.refresh_worker.wait()
+            
+            # Create and start worker thread
+            try:
+                self.refresh_worker = RefreshWorker(self.docker_service)
+                self.refresh_worker.results_ready.connect(self.on_refresh_complete)
+                self.refresh_worker.signals.error.connect(self.on_refresh_error)
+                self.refresh_worker.signals.log.connect(self.log)
+                self.refresh_worker.start()
+                self.active_workers.append(self.refresh_worker)
+            except Exception as e:
+                error_msg = f"Failed to start refresh worker: {str(e)}"
+                self.logger.error(error_msg)
+                self.logger.error(traceback.format_exc())
+                self.error_handler.show_error(error_msg)
+                self.header_widget.enable_refresh()
 
     def on_refresh_error(self, error_msg):
         """Handle errors from the refresh worker."""        
@@ -310,19 +365,41 @@ class DockerManagerApp(QMainWindow):
                 self.error_handler.show_error(error)
                 self.status_label.setText("Error refreshing data")
             else:
-                self.status_label.setText(f"Found {len(containers)} containers, {len(images)} images, {len(volumes)} volumes, {len(networks)} networks")
+                # Add detailed status text with context info
+                current_context = self.context_selector.get_current_context() 
+                context_info = f" in context '{current_context}'" if current_context != "All" else " across all contexts"
+                
+                status_msg = f"Found {len(containers)} containers, {len(images)} images, " + \
+                             f"{len(volumes)} volumes, {len(networks)} networks{context_info}"
+                
+                self.status_label.setText(status_msg)
+                
+                # Log the counts
+                self.log(status_msg)
             
                 # Update resource tables
                 for container in containers:
+                    # Make sure container has a context field
+                    if "context" not in container:
+                        container["context"] = "default"
                     self.container_tab.add_container_row(container)
                     
                 for image in images:
+                    # Make sure image has a context field
+                    if "context" not in image:
+                        image["context"] = "default"
                     self.image_tab.add_image_row(image)
                     
                 for volume in volumes:
+                    # Make sure volume has a context field
+                    if "context" not in volume:
+                        volume["context"] = "default"
                     self.volume_tab.add_volume_row(volume)
                     
                 for network in networks:
+                    # Make sure network has a context field
+                    if "context" not in network:
+                        network["context"] = "default"
                     self.network_tab.add_network_row(network)
                     
                 self.log("Docker data refreshed.")
@@ -345,36 +422,62 @@ class DockerManagerApp(QMainWindow):
         self.context_selector.set_contexts(contexts, current_context)
     
     def load_contexts(self, from_refresh=False):
-        """Load available Docker contexts."""        
+        """Load available Docker contexts."""
+        # Only refresh the cache if not called from refresh_data to avoid redundant calls
+        if not from_refresh and hasattr(self.main_viewmodel, 'invalidate_contexts_cache'):
+            self.main_viewmodel.invalidate_contexts_cache()
+        
+        # Get updated contexts
         contexts, error = self.main_viewmodel.get_docker_contexts()
+        
         if error:
             self.error_handler.show_error(f"Error loading Docker contexts: {error}")
             return
         
-        # Get current context from the main viewmodel
-        current_context = self.main_viewmodel.get_current_context()
+        # Get current context from the main viewmodel or use the current selection
+        current_context = self.context_selector.get_current_context() or self.main_viewmodel.get_current_context()
         
-        # Update context selector
+        # Always ensure "All" is in the list of contexts
+        if "All" not in contexts:
+            contexts.insert(0, "All")
+        
+        # Log the available contexts
+        self.log(f"Available Docker contexts: {', '.join([c for c in contexts if c != 'All'])}")
+        
+        # Update context selector - maintain current selection if possible
         self.context_selector.set_contexts(contexts, current_context)
         
-        # Set the last used context if available, but only if not called from refresh_data()
-        # to avoid recursion
+        # Only change context if needed and not called during a refresh operation
         if not from_refresh and hasattr(self, 'last_context') and self.last_context in contexts:
-            self.change_context(self.last_context)
+            # Use direct call to avoid triggering a refresh again
+            QTimer.singleShot(100, lambda: self.change_context(self.last_context))
+        elif not from_refresh and current_context != self.context_selector.get_current_context():
+            # If context changed, update it
+            QTimer.singleShot(100, lambda: self.change_context(current_context))
 
     def change_context(self, context_name):
         """Change the active Docker context."""        
         if not context_name:
             return
+        
+        # Handle "All" context separately
+        if context_name == "All":
+            self.log("Viewing all Docker contexts")
+            self.refresh_data(refresh_contexts=False)
+            return
             
         # Try to set the context
         success = self.main_viewmodel.set_docker_context(context_name)
-        if (success):
+        
+        # The success check should now work properly with our updated DockerContextServiceImpl
+        if success:
             self.log(f"Switched to Docker context: {context_name}")
             # Refresh data for new context, but don't refresh contexts again
             self.refresh_data(refresh_contexts=False)
         else:
             self.error_handler.show_error(f"Failed to switch to context: {context_name}")
+            # Refresh the context selector to reset to the current context
+            self.load_contexts()
 
     def setup_menu(self):
         """Set up application menu."""        
@@ -410,8 +513,17 @@ class DockerManagerApp(QMainWindow):
             self.apply_settings()
             
     def apply_settings(self):
-        """Apply changes from settings."""        
+        """Apply changes from settings."""
         self.settings = QSettings("LiDoMa", "DockerManager")
+        
+        # Apply theme
+        current_theme = self.settings.value("theme", "Dark")
+        ThemeManager.apply_theme(current_theme)
+        
+        # Apply theme to main window explicitly
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.update()
         
         # Apply font size
         font_size = self.settings.value("fontSize", 9, type=int)
@@ -419,8 +531,12 @@ class DockerManagerApp(QMainWindow):
         app_font.setPointSize(font_size)
         QApplication.setFont(app_font)
         
-        # Other settings can be applied as needed
-        
+        # Force update on all widgets
+        for widget in QApplication.allWidgets():
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+            widget.update()
+            
     def show_about(self):
         """Show about dialog."""        
         from PyQt5.QtWidgets import QMessageBox
@@ -430,3 +546,20 @@ class DockerManagerApp(QMainWindow):
                          "<p>A lightweight Docker management UI</p>"
                          "<p>Created by LiDoMa</p>"
                          "<p><a href='https://github.com/yourusername/docker-manager'>GitHub</a></p>")
+
+    def on_refresh_started(self):
+        """Handle refresh started signal from the viewmodel."""        
+        self.header_widget.disable_refresh()
+        self.error_handler.clear_error()
+        self.log("Refresh operation started...")
+        self.status_label.setText("Refreshing Docker resources...")
+        
+        # Clear tables
+        self.container_tab.clear_table()
+        self.image_tab.clear_table()
+        self.volume_tab.clear_table()
+        self.network_tab.clear_table()
+    
+    def handle_refresh_completed(self, containers, images, volumes, networks, error):
+        """Handle refresh completed signal from the viewmodel."""        
+        self.on_refresh_complete(containers, images, volumes, networks, error)

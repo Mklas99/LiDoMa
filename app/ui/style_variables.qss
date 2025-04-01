@@ -1,0 +1,45 @@
+/* Dark Theme - Professional Pastel Colors */
+--dark-background: #1E2030;
+--dark-secondary-background: #171926;
+--dark-tertiary-background: #252A3C;
+--dark-text: #E2E8F0;
+--dark-secondary-text: #A9B4C4;
+--dark-border: #384057;
+--dark-highlight: #7AA2F7;
+--dark-button: #7DCFFF;
+--dark-button-hover: #91D7FF;
+--dark-button-pressed: #5EBBEF;
+--dark-stop-button: #ED8796;
+--dark-stop-button-hover: #F5A3AD;
+--dark-delete-button: #C6A0F6;
+--dark-delete-button-hover: #D4B3FF;
+--dark-disabled-background: #373B4D;
+--dark-disabled-text: #7E8499;
+--dark-table-background: #24283B;
+--dark-table-item-selected: #7AA2F7;
+--dark-header-text: #BBC2D0;
+--dark-scrollbar: #414868;
+--dark-scrollbar-hover: #7AA2F7;
+
+/* Light Theme - Professional Pastel Colors */
+--light-background: #F4F6F8;
+--light-secondary-background: #FFFFFF;
+--light-tertiary-background: #EBEEF2;
+--light-text: #333344;
+--light-secondary-text: #5D6B89;
+--light-border: #D0D7E3;
+--light-highlight: #5B8EF7;
+--light-button: #82AAFF;
+--light-button-hover: #99BBFF;
+--light-button-pressed: #6B96E9;
+--light-stop-button: #F08CAD;
+--light-stop-button-hover: #FFB3C6;
+--light-delete-button: #C3A4F8;
+--light-delete-button-hover: #D4BCFF;
+--light-disabled-background: #E8EBF0;
+--light-disabled-text: #A0A8B8;
+--light-table-background: #FFFFFF;
+--light-table-item-selected: #82AAFF;
+--light-header-text: #5D6B89;
+--light-scrollbar: #D0D7E3;
+--light-scrollbar-hover: #82AAFF;

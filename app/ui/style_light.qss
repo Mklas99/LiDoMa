@@ -1,0 +1,204 @@
+@import url("style_variables.qss");
+
+QWidget {
+    background-color: var(--light-background);
+    color: var(--light-text);
+    font-family: "Segoe UI", "Arial", sans-serif;
+}
+
+QPushButton {
+    background-color: var(--light-button);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-weight: bold;
+    min-width: 80px;
+}
+QPushButton:hover {
+    background-color: var(--light-button-hover);
+}
+QPushButton:pressed {
+    background-color: var(--light-button-pressed);
+}
+QPushButton:disabled {
+    background-color: var(--light-disabled-background);
+    color: var(--light-disabled-text);
+}
+QPushButton#stopButton {
+    background-color: var(--light-stop-button);
+}
+QPushButton#stopButton:hover {
+    background-color: var(--light-stop-button-hover);
+}
+QPushButton#deleteButton {
+    background-color: var(--light-delete-button);
+}
+QPushButton#deleteButton:hover {
+    background-color: var(--light-delete-button-hover);
+}
+
+QTableWidget {
+    background-color: var(--light-table-background);
+    gridline-color: var(--light-border);
+    border: 1px solid var(--light-border);
+    border-radius: 4px;
+    padding: 2px;
+}
+QTableWidget::item {
+    padding: 6px;
+    border-bottom: 1px solid var(--light-border);
+}
+QTableWidget::item:selected {
+    background-color: var(--light-table-item-selected);
+    color: white;
+}
+QHeaderView::section {
+    background-color: var(--light-tertiary-background);
+    color: var(--light-header-text);
+    padding: 8px;
+    border: 0px;
+    font-weight: bold;
+    border-right: 1px solid var(--light-border);
+    border-bottom: 1px solid var(--light-border);
+}
+
+QTextEdit, QLineEdit {
+    background-color: var(--light-secondary-background);
+    border: 1px solid var(--light-border);
+    border-radius: 4px;
+    color: var(--light-text);
+    padding: 6px;
+    selection-background-color: var(--light-highlight);
+}
+
+QLineEdit#searchBox {
+    padding-left: 24px;
+    border: 1px solid var(--light-border);
+    background-color: var(--light-secondary-background);
+}
+
+QTabWidget::pane {
+    border: 1px solid var(--light-border);
+    border-radius: 4px;
+    top: -1px;
+}
+QTabBar::tab {
+    background-color: var(--light-tertiary-background);
+    color: var(--light-text);
+    border: 1px solid var(--light-border);
+    padding: 10px 16px;
+    margin-right: 2px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+QTabBar::tab:selected {
+    background-color: var(--light-highlight);
+    color: white;
+    border-bottom: none;
+    font-weight: bold;
+}
+QTabBar::tab:!selected:hover {
+    background-color: var(--light-highlight);
+    opacity: 0.7;
+    color: white;
+}
+
+QStatusBar {
+    background-color: var(--light-tertiary-background);
+    color: var(--light-secondary-text);
+    border-top: 1px solid var(--light-border);
+}
+QStatusBar::item {
+    border: none;
+}
+
+QToolButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 4px;
+}
+QToolButton:hover {
+    background-color: var(--light-tertiary-background);
+}
+
+QSplitter::handle {
+    background-color: var(--light-border);
+}
+QSplitter::handle:hover {
+    background-color: var(--light-highlight);
+}
+
+QScrollBar:vertical {
+    border: none;
+    background: var(--light-background);
+    width: 14px;
+    margin: 0px 0px 0px 0px;
+}
+QScrollBar::handle:vertical {
+    background: var(--light-scrollbar);
+    min-height: 30px;
+    border-radius: 7px;
+}
+QScrollBar::handle:vertical:hover {
+    background: var(--light-scrollbar-hover);
+}
+
+QDialog {
+    background-color: var(--light-background);
+    border: 1px solid var(--light-border);
+}
+
+QComboBox {
+    background-color: var(--light-secondary-background);
+    border: 1px solid var(--light-border);
+    border-radius: 4px;
+    padding: 6px;
+    min-width: 6em;
+    color: var(--light-text);
+}
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 20px;
+    border-left: 1px solid var(--light-border);
+}
+QComboBox QAbstractItemView {
+    background-color: var(--light-secondary-background);
+    border: 1px solid var(--light-border);
+    selection-background-color: var(--light-highlight);
+    selection-color: white;
+}
+
+QCheckBox {
+    color: var(--light-text);
+    spacing: 5px;
+}
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--light-border);
+    border-radius: 3px;
+    background-color: var(--light-secondary-background);
+}
+QCheckBox::indicator:checked {
+    background-color: var(--light-highlight);
+    border: 1px solid var(--light-highlight);
+}
+
+QSpinBox {
+    background-color: var(--light-secondary-background);
+    border: 1px solid var(--light-border);
+    border-radius: 4px;
+    color: var(--light-text);
+    padding: 6px;
+}
+QSpinBox::up-button, QSpinBox::down-button {
+    background-color: var(--light-tertiary-background);
+    border: 1px solid var(--light-border);
+    border-radius: 2px;
+}
+QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+    background-color: var(--light-border);
+}

@@ -3,8 +3,8 @@ Tab view for displaying and managing Docker images.
 """
 from typing import Dict, List
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, 
-                           QPushButton, QHBoxLayout, QHeaderView, QMenu, QAction, QMessageBox)
-from PyQt5.QtCore import Qt, QPoint
+                           QPushButton, QHBoxLayout, QHeaderView, QMenu, QAction, QMessageBox, QInputDialog, QLineEdit)
+from PyQt5.QtCore import Qt, QPoint, pyqtSlot
 
 from app.ui.viewmodels.image_viewmodel import ImageViewModel
 
@@ -13,11 +13,10 @@ class ImageTabView(QWidget):
     
     def __init__(self, parent, viewmodel: ImageViewModel):
         super().__init__(parent)
+        self.parent = parent
         self.viewmodel = viewmodel
-        self.viewmodel.image_operation_completed.connect(self.on_operation_completed)
-        
-        # Initialize UI
         self.init_ui()
+        self.connect_signals()
         
     def init_ui(self):
         """Initialize the UI components."""
@@ -44,8 +43,8 @@ class ImageTabView(QWidget):
         layout.addLayout(button_layout)
         
         # Create image table
-        self.image_table = QTableWidget(0, 4)
-        self.image_table.setHorizontalHeaderLabels(["Repository", "Tag", "ID", "Size"])
+        self.image_table = QTableWidget(0, 5)  # Change from 4 to 5 columns
+        self.image_table.setHorizontalHeaderLabels(["Repository", "Tag", "ID", "Size", "Context"])
         self.image_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.image_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.image_table.setSelectionMode(QTableWidget.SingleSelection)
@@ -63,6 +62,11 @@ class ImageTabView(QWidget):
         # Add table to layout
         layout.addWidget(self.image_table)
         
+    def connect_signals(self):
+        """Connect signals from the viewmodel."""
+        self.viewmodel.image_operation_completed.connect(self.on_image_operation_completed)
+        self.viewmodel.error_occurred.connect(self.on_error)
+    
     def update_button_states(self):
         """Enable/disable buttons based on selection state"""
         has_selection = len(self.image_table.selectedItems()) > 0
@@ -98,6 +102,10 @@ class ImageTabView(QWidget):
         size_str = self._format_size(size)
         size_item = QTableWidgetItem(size_str)
         self.image_table.setItem(row, 3, size_item)
+        
+        # Context cell (new)
+        context_item = QTableWidgetItem(image.get("context", "default"))
+        self.image_table.setItem(row, 4, context_item)
     
     def clear_table(self):
         """Clear all images from the table."""
@@ -115,17 +123,36 @@ class ImageTabView(QWidget):
             
             self.image_table.setRowHidden(row, not should_show)
     
-    def on_operation_completed(self, success, message):
-        """Handle operation completion."""
-        parent = self.parent()
+    def on_error(self, message):
+        """Handle errors from the viewmodel."""
+        # Log the error
+        self.parent.log(f"ERROR: {message}")
         
-        # Log the operation result
-        if hasattr(parent, 'log'):
-            parent.log(message)
+        # For image pull errors, show a more detailed message box with explanations
+        if "Error pulling image:" in message:
+            error_dialog = QMessageBox(self)
+            error_dialog.setWindowTitle("Image Pull Error")
+            error_dialog.setIcon(QMessageBox.Critical)
+            error_dialog.setText("Failed to pull Docker image")
+            error_dialog.setInformativeText(message.split("Error pulling image:")[1].strip())
+            error_dialog.setDetailedText(message)
+            error_dialog.setStandardButtons(QMessageBox.Ok)
+            error_dialog.setDefaultButton(QMessageBox.Ok)
+            # Make the dialog wider to accommodate longer error messages
+            error_dialog.setMinimumWidth(500)
+            error_dialog.exec_()
         
-        # Show error if failed
-        if not success and hasattr(parent, 'error_handler'):
-            parent.error_handler.show_error(message)
+        # Make sure parent error handler shows it too
+        if hasattr(self.parent, 'error_handler'):
+            self.parent.error_handler.show_error(message)
+    
+    def on_image_operation_completed(self, success, message):
+        """Handle completion of an image operation."""
+        if success:
+            self.parent.log(message)
+        else:
+            # Already handled by on_error, but log it anyway
+            self.parent.log(f"Operation failed: {message}")
     
     def show_context_menu(self, position):
         """Show context menu for image operations."""
@@ -181,38 +208,22 @@ class ImageTabView(QWidget):
             self.viewmodel.remove_image(image_id, context)
     
     def pull_image(self):
-        """Pull an image from registry."""
-        from PyQt5.QtWidgets import QDialog, QLabel, QLineEdit, QDialogButtonBox, QFormLayout
+        """Pull a new image from registry."""
+        image_name, ok = QInputDialog.getText(
+            self, 
+            "Pull Image", 
+            "Enter image name (e.g., ubuntu:latest):",
+            QLineEdit.Normal
+        )
         
-        # Create dialog
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Pull Image")
-        dialog.setMinimumWidth(400)
-        
-        layout = QFormLayout(dialog)
-        
-        # Image name input
-        name_input = QLineEdit()
-        layout.addRow("Image Name:", name_input)
-        
-        # Tag input
-        tag_input = QLineEdit()
-        tag_input.setText("latest")
-        layout.addRow("Tag:", tag_input)
-        
-        # Buttons
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        layout.addRow(buttons)
-        
-        # Show dialog
-        if dialog.exec_() == QDialog.Accepted:
-            image_name = name_input.text().strip()
-            tag = tag_input.text().strip() or "latest"
+        if ok and image_name:
+            self.parent.log(f"Pulling image: {image_name}")
             
-            if image_name:
-                self.viewmodel.pull_image(image_name, tag)
+            # Get the current context
+            context = self.parent.context_selector.get_current_context() or "default"
+            
+            # Request the viewmodel to pull the image
+            self.viewmodel.pull_image(image_name, context)
     
     def _format_size(self, size_bytes):
         """Format size in bytes to human-readable format."""

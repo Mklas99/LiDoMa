@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                            QTabWidget, QWidget, QFormLayout, QLineEdit, 
                            QCheckBox, QLabel, QSpinBox, QComboBox, QDialogButtonBox)
 from PyQt5.QtCore import Qt, QSettings
+from app.ui.theme_manager import ThemeManager
 
 class SettingsDialog(QDialog):
     """Dialog for application settings."""
@@ -107,6 +108,8 @@ class SettingsDialog(QDialog):
         # Theme selection
         self.theme = QComboBox()
         self.theme.addItems(["Dark", "Light", "System"])
+        # Connect theme change signal
+        self.theme.currentTextChanged.connect(self.on_theme_preview)
         layout.addRow("Theme:", self.theme)
         
         # Font size
@@ -116,7 +119,25 @@ class SettingsDialog(QDialog):
         self.font_size.setSuffix(" pt")
         layout.addRow("UI Font Size:", self.font_size)
         
+        # Add note about theme preview
+        note = QLabel("Note: Theme changes are previewed immediately but will be fully applied on restart.")
+        note.setWordWrap(True)
+        layout.addRow("", note)
+        
         return widget
+    
+    def on_theme_preview(self, theme_name):
+        """Preview theme when changed in settings."""
+        # Apply the theme immediately for preview
+        ThemeManager.apply_theme(theme_name)
+        
+        # Force update on the dialog and all its children
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.update()
+        
+        # Refresh this dialog to ensure all components update
+        ThemeManager.refresh_widget_style(self)
     
     def loadSettings(self):
         """Load settings from QSettings."""
@@ -147,7 +168,18 @@ class SettingsDialog(QDialog):
         self.settings.setValue("refreshInterval", self.refresh_interval.value())
         
         # Display tab
-        self.settings.setValue("theme", self.theme.currentText())
+        old_theme = self.settings.value("theme", "Dark")
+        new_theme = self.theme.currentText()
+        self.settings.setValue("theme", new_theme)
         self.settings.setValue("fontSize", self.font_size.value())
+        
+        # Apply theme if changed - ensure it's fully applied
+        if old_theme != new_theme:
+            ThemeManager.apply_theme(new_theme)
+            
+            # Notify the user that some changes might require restart for full effect
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Theme Applied", 
+                                   "The theme has been changed and applied. Some elements may require application restart to display correctly.")
         
         self.accept()

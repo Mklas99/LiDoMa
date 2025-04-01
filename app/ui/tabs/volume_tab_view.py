@@ -62,8 +62,7 @@ class VolumeTabView(QWidget):
         
     def init_ui(self):
         """Initialize the UI components."""
-        layout = QVBoxLayout()
-        self.setLayout(layout)
+        layout = QVBoxLayout(self)
         
         # Create volume table
         self.volume_table = QTableWidget(0, 4)
@@ -119,17 +118,25 @@ class VolumeTabView(QWidget):
         
     def add_volume_row(self, volume):
         """Add a volume to the table."""
-        row_position = self.volume_table.rowCount()
-        self.volume_table.insertRow(row_position)
+        row = self.volume_table.rowCount()
+        self.volume_table.insertRow(row)
         
-        # Set volume data
-        self.volume_table.setItem(row_position, 0, QTableWidgetItem(volume.get("name", "")))
-        self.volume_table.setItem(row_position, 1, QTableWidgetItem(volume.get("driver", "local")))
-        self.volume_table.setItem(row_position, 2, QTableWidgetItem(volume.get("mountpoint", "")))
-        self.volume_table.setItem(row_position, 3, QTableWidgetItem(volume.get("context", "default")))
+        # Name cell
+        name_item = QTableWidgetItem(volume["name"])
+        name_item.setData(Qt.UserRole, volume)  # Store volume data
+        self.volume_table.setItem(row, 0, name_item)
         
-        # Store the complete volume info in the first column item
-        self.volume_table.item(row_position, 0).setData(Qt.UserRole, volume)
+        # Driver cell
+        driver_item = QTableWidgetItem(volume.get("driver", "local"))
+        self.volume_table.setItem(row, 1, driver_item)
+        
+        # Mountpoint cell
+        mountpoint_item = QTableWidgetItem(volume.get("mountpoint", ""))
+        self.volume_table.setItem(row, 2, mountpoint_item)
+        
+        # Context cell (new)
+        context_item = QTableWidgetItem(volume.get("context", "default"))
+        self.volume_table.setItem(row, 3, context_item)
     
     def clear_table(self):
         """Clear all volumes from the table."""

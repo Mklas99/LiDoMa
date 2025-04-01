@@ -15,14 +15,18 @@ class TestWorker(QThread):
     """Test worker thread to verify threading functionality."""
     result_ready = pyqtSignal(str)
     error_occurred = pyqtSignal(str)
+    # Add progress signal to match app's refresh worker
+    progress = pyqtSignal(int)
     
     def __init__(self, task_type):
         super().__init__()
         self.task_type = task_type
+        self.is_running = False
     
     def run(self):
         """Execute the test task."""
         try:
+            self.is_running = True
             logger.info(f"Worker thread {self.task_type} started - Thread ID: {int(QThread.currentThreadId())}")
             
             if self.task_type == "docker":
@@ -43,8 +47,19 @@ class TestWorker(QThread):
                 import time
                 for i in range(10):
                     logger.info(f"Long task progress: {i+1}/10")
+                    # Emit progress signal
+                    self.progress.emit((i+1) * 10)
                     time.sleep(0.5)
                 result = "Long-running task completed successfully"
+            
+            elif self.task_type == "contexts":
+                # Test Docker contexts functionality
+                try:
+                    import subprocess
+                    result = subprocess.check_output(["docker", "context", "ls", "--format", "{{.Name}}"]).decode().strip()
+                    result = f"Available Docker contexts:\n{result}"
+                except Exception as e:
+                    result = f"Error listing Docker contexts: {str(e)}"
             
             else:
                 # Simple info task
@@ -58,6 +73,8 @@ class TestWorker(QThread):
             logger.error(error_msg)
             logger.error(traceback.format_exc())
             self.error_occurred.emit(error_msg)
+        finally:
+            self.is_running = False
 
 class SimpleDockerManager(QMainWindow):
     """A simplified version of the Docker Manager app to diagnose UI issues."""

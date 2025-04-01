@@ -62,8 +62,7 @@ class NetworkTabView(QWidget):
         
     def init_ui(self):
         """Initialize the UI components."""
-        layout = QVBoxLayout()
-        self.setLayout(layout)
+        layout = QVBoxLayout(self)
         
         # Create network table
         self.network_table = QTableWidget(0, 5)
@@ -118,18 +117,31 @@ class NetworkTabView(QWidget):
         
     def add_network_row(self, network):
         """Add a network to the table."""
-        row_position = self.network_table.rowCount()
-        self.network_table.insertRow(row_position)
+        row = self.network_table.rowCount()
+        self.network_table.insertRow(row)
         
-        # Set network data
-        self.network_table.setItem(row_position, 0, QTableWidgetItem(network.get("name", "")))
-        self.network_table.setItem(row_position, 1, QTableWidgetItem(network.get("id", "")))
-        self.network_table.setItem(row_position, 2, QTableWidgetItem(network.get("driver", "")))
-        self.network_table.setItem(row_position, 3, QTableWidgetItem(network.get("scope", "")))
-        self.network_table.setItem(row_position, 4, QTableWidgetItem(network.get("context", "default")))
+        # Name cell
+        name_item = QTableWidgetItem(network["name"])
+        name_item.setData(Qt.UserRole, network)  # Store network data
+        self.network_table.setItem(row, 0, name_item)
         
-        # Store the complete network info in the first column item
-        self.network_table.item(row_position, 0).setData(Qt.UserRole, network)
+        # ID cell (shortened)
+        id_val = network.get("id", "")
+        id_short = id_val[:12] if id_val else ""
+        id_item = QTableWidgetItem(id_short)
+        self.network_table.setItem(row, 1, id_item)
+        
+        # Driver cell
+        driver_item = QTableWidgetItem(network.get("driver", ""))
+        self.network_table.setItem(row, 2, driver_item)
+        
+        # Scope cell
+        scope_item = QTableWidgetItem(network.get("scope", ""))
+        self.network_table.setItem(row, 3, scope_item)
+        
+        # Context cell (new)
+        context_item = QTableWidgetItem(network.get("context", "default"))
+        self.network_table.setItem(row, 4, context_item)
     
     def clear_table(self):
         """Clear all networks from the table."""

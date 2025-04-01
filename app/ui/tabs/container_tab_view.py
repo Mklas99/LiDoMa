@@ -58,8 +58,8 @@ class ContainerTabView(QWidget):
         layout.addLayout(button_layout)
         
         # Create container table
-        self.container_table = QTableWidget(0, 4)
-        self.container_table.setHorizontalHeaderLabels(["Name", "Image", "Status", "Ports"])
+        self.container_table = QTableWidget(0, 5)  # Change from 4 to 5 columns
+        self.container_table.setHorizontalHeaderLabels(["Name", "Image", "Status", "Ports", "Context"])
         self.container_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.container_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.container_table.setSelectionMode(QTableWidget.SingleSelection)
@@ -110,6 +110,10 @@ class ContainerTabView(QWidget):
         ports_text = self._format_ports(container.get("ports", {}))
         ports_item = QTableWidgetItem(ports_text)
         self.container_table.setItem(row, 3, ports_item)
+        
+        # Context cell (new)
+        context_item = QTableWidgetItem(container.get("context", "default"))
+        self.container_table.setItem(row, 4, context_item)
         
         # Set row color based on status
         self._set_row_color(row, container.get("status", ""))

@@ -15,9 +15,13 @@ from app.ui.viewmodels import MainViewModel
 from app.core.services.service_locator import ServiceLocator
 from app.ui.main_window import DockerManagerApp
 from PyQt5.QtWidgets import QApplication
+from app.ui.theme_manager import ThemeManager
 
 def main():
     app = QApplication(sys.argv)
+    
+    # Apply theme from settings before creating any UI elements
+    ThemeManager.apply_theme()
     
     try:
         # Initialize services

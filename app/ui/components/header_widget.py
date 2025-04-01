@@ -46,32 +46,40 @@ class SearchWidget(QWidget):
         self.search_input.setFocus()
 
 class HeaderWidget(QWidget):
-    """Header widget with search and controls."""
+    """Header widget with search box and control buttons."""
     
-    def __init__(self, parent=None, search_callback: Callable = None, refresh_callback: Callable = None):
+    def __init__(self, parent, search_callback=None, refresh_callback=None):
         super().__init__(parent)
-        self.layout = QHBoxLayout(self)
-        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.search_callback = search_callback
+        self.refresh_callback = refresh_callback
+        self.init_ui()
         
-        # Create title
-        self.title_label = QLabel("Docker Manager")
-        self.title_label.setStyleSheet("font-size: 16px; font-weight: bold;")
-        self.layout.addWidget(self.title_label)
+    def init_ui(self):
+        """Initialize the UI components."""
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         
-        # Add stretching space
-        self.layout.addStretch()
+        # Add search widget
+        self.search_widget = SearchWidget(self)
+        self.search_widget.set_search_callback(self.search_callback)
+        layout.addWidget(self.search_widget)
         
-        # Create search widget
-        self.search_widget = SearchWidget()
-        if search_callback:
-            self.search_widget.set_search_callback(search_callback)
-        self.layout.addWidget(self.search_widget)
-        
-        # Create refresh button
+        # Add refresh button
         self.refresh_button = QPushButton("Refresh")
-        self.refresh_button.clicked.connect(refresh_callback if refresh_callback else lambda: None)
-        self.layout.addWidget(self.refresh_button)
-    
+        self.refresh_button.setIcon(QIcon.fromTheme("view-refresh"))
+        self.refresh_button.setToolTip("Refresh all Docker contexts and resources (Ctrl+R)")
+        self.refresh_button.clicked.connect(self.on_refresh_clicked)
+        layout.addWidget(self.refresh_button)
+        
+        # Add settings button if needed
+        # ...
+        
+    def on_refresh_clicked(self):
+        """Handle refresh button click."""
+        if self.refresh_callback:
+            # Call the refresh callback provided by the parent
+            self.refresh_callback()
+            
     def get_search_widget(self) -> SearchWidget:
         """Get the search widget."""
         return self.search_widget
