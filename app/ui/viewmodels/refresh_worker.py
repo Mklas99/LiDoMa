@@ -2,7 +2,7 @@
 import traceback
 import sys
 from typing import Dict, List, Tuple
-from PyQt5.QtCore import pyqtSignal, QThread, QObject
+from PyQt5.QtCore import pyqtSignal, QThread, QObject, QTimer  # Add QTimer import
 
 from app.core.services.docker_service import DockerService
 
@@ -10,6 +10,7 @@ class WorkerSignals(QObject):
     """Signals for the worker thread."""
     error = pyqtSignal(str)  # Changed from tuple to str to avoid traceback issues
     log = pyqtSignal(str)
+    finished = pyqtSignal()  # Signal to indicate thread completion
 
 class RefreshWorker(QThread):
     """Worker thread for refreshing Docker data."""
@@ -46,8 +47,15 @@ class RefreshWorker(QThread):
         except Exception as e:
             error_msg = f"Error refreshing Docker data: {str(e)}"
             self.signals.log.emit(error_msg)
-            self.signals.error.emit(error_msg)  # Just pass the error message
-            self.results_ready.emit([], [], [], [], str(e))
+            self.signals.error.emit(error_msg)
+            self.results_ready.emit([], [], [], [], error_msg)
+            import traceback
+            traceback.print_exc()
         
         finally:
-            self.is_running = False
+            QTimer.singleShot(100, self._finalize)
+
+    def _finalize(self):
+        """Finalize the thread after a short delay to ensure signal processing."""
+        self.is_running = False
+        self.signals.finished.emit()

@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QApplication, QSplitter, 
-                            QShortcut, QStatusBar, QTabWidget, QFrame, QHBoxLayout, QMessageBox)
+                            QShortcut, QStatusBar, QTabWidget, QFrame, QHBoxLayout, QMessageBox,
+                            QStackedWidget)
 from PyQt5.QtCore import Qt, QSettings, QTimer
 from PyQt5.QtGui import QFont, QKeySequence
 from datetime import datetime
@@ -24,6 +25,7 @@ from app.ui.components.status_bar_components import StatusBarComponents
 from app.ui.components.error_handler import ErrorHandler
 from app.ui.components.log_widget import LogWidget
 from app.ui.components.context_selector import ContextSelector
+from app.ui.components.docker_unavailable_widget import DockerUnavailableWidget
 
 # Import tab views
 from app.ui.tabs.container_tab_view import ContainerTabView
@@ -41,6 +43,8 @@ from app.ui.theme_manager import ThemeManager
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+from app.ui.utils.thread_manager import ThreadManager
 
 class DockerManagerApp(QMainWindow):
     """Main application window for Docker Manager."""
@@ -82,6 +86,7 @@ class DockerManagerApp(QMainWindow):
         # Initialize thread tracking
         self.refresh_worker = None
         self.active_workers = []
+        self.thread_manager = ThreadManager.instance()
         
         # Initialize UI
         self.init_ui()
@@ -107,8 +112,8 @@ class DockerManagerApp(QMainWindow):
         # Load Docker contexts after a short delay to ensure UI is visible first
         QTimer.singleShot(500, self.load_contexts)
         
-        # Start initial data load after UI is shown
-        QTimer.singleShot(1000, self.refresh_data)
+        # Check Docker availability after a short delay
+        QTimer.singleShot(1500, self.check_docker_connection)
 
     def init_ui(self):
         """Initialize the UI components."""        
@@ -118,8 +123,16 @@ class DockerManagerApp(QMainWindow):
         main_layout.setSpacing(10)
         central_widget.setLayout(main_layout)
 
+        # Create stacked widget to switch between Docker available/unavailable views
+        self.view_stack = QStackedWidget()
+        
+        # Create Docker available view (normal view)
+        self.docker_available_view = QWidget()
+        docker_available_layout = QVBoxLayout(self.docker_available_view)
+        docker_available_layout.setContentsMargins(0, 0, 0, 0)
+        
         # Add error label to the top
-        main_layout.addWidget(self.error_handler.error_label)
+        docker_available_layout.addWidget(self.error_handler.error_label)
         
         # Add header with search and controls
         self.header_widget = HeaderWidget(
@@ -127,18 +140,14 @@ class DockerManagerApp(QMainWindow):
             search_callback=self.filter_tables,
             refresh_callback=self.refresh_data
         )
-        main_layout.addWidget(self.header_widget)
+        docker_available_layout.addWidget(self.header_widget)
         
         # Add context selector
         self.context_selector = ContextSelector()
         self.context_selector.context_changed.connect(self.change_context)
-        main_layout.addWidget(self.context_selector)
+        docker_available_layout.addWidget(self.context_selector)
         
-        self.main_splitter = QSplitter(Qt.Vertical)
-        self.main_splitter.setHandleWidth(8)
-        self.main_splitter.setChildrenCollapsible(True)
-        
-        # Create tab container
+        # Create tabs container
         tabs_container = QFrame()
         tabs_container.setFrameShape(QFrame.StyledPanel)
         tabs_layout = QVBoxLayout(tabs_container)
@@ -163,14 +172,31 @@ class DockerManagerApp(QMainWindow):
         self.tabs.addTab(self.network_tab, "Networks")
         
         tabs_layout.addWidget(self.tabs)
+        docker_available_layout.addWidget(tabs_container)
         
-        # Add tab container and log widget to splitter
-        self.main_splitter.addWidget(tabs_container)
+        # Create Docker unavailable view
+        self.docker_unavailable_view = DockerUnavailableWidget()
+        self.docker_unavailable_view.retry_requested.connect(self.check_docker_connection)
+        
+        # Add both views to stack
+        self.view_stack.addWidget(self.docker_available_view)
+        self.view_stack.addWidget(self.docker_unavailable_view)
+        
+        # Default to Docker available view
+        self.view_stack.setCurrentIndex(0)
+        
+        # Add the stack to the main layout
+        main_layout.addWidget(self.view_stack)
+        
+        # Create main splitter for log view
+        self.main_splitter = QSplitter(Qt.Vertical)
+        self.main_splitter.setHandleWidth(8)
+        self.main_splitter.setChildrenCollapsible(True)
+        
+        # Add log widget to splitter
         self.main_splitter.addWidget(self.log_widget)
         
-        # Set initial sizes
-        self.main_splitter.setSizes([600, 100])
-        
+        # Add splitter to main layout
         main_layout.addWidget(self.main_splitter)
         
         # Add hint for WSL containers
@@ -210,7 +236,7 @@ class DockerManagerApp(QMainWindow):
         clear_log_shortcut.activated.connect(self.log_widget.clear)
 
     def load_settings(self):
-        """Load application settings."""        
+        """Load application settings."""
         # Window geometry
         geometry = self.settings.value("geometry")
         if geometry:
@@ -227,14 +253,15 @@ class DockerManagerApp(QMainWindow):
             self.main_splitter.restoreState(splitter_state)
 
     def save_settings(self):
-        """Save application settings."""        
+        """Save application settings."""
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("windowState", self.saveState())
         if hasattr(self, 'main_splitter'):
             self.settings.setValue("splitterState", self.main_splitter.saveState())
 
     def closeEvent(self, event):
-        """Handle window close event to save settings and clean up threads."""        
+        """Handle window close event to save settings and clean up threads."""
+        self.thread_manager.cleanup_all()
         
         # Properly shutdown the logging handler before the Qt object is destroyed
         if hasattr(self, 'log_handler'):
@@ -255,11 +282,11 @@ class DockerManagerApp(QMainWindow):
         super().closeEvent(event)
 
     def focus_search(self):
-        """Set focus to search box."""        
+        """Set focus to search box."""
         self.header_widget.get_search_widget().set_focus()
 
     def filter_tables(self):
-        """Filter all resource tables based on search text"""        
+        """Filter all resource tables based on search text"""
         search_text = self.header_widget.get_search_widget().get_search_text().lower()
         self.container_tab.filter_table(search_text)
         self.image_tab.filter_table(search_text)
@@ -267,14 +294,14 @@ class DockerManagerApp(QMainWindow):
         self.network_tab.filter_table(search_text)
 
     def log(self, message):
-        """Log a message through the logging system."""        
+        """Log a message through the logging system."""
         logger.info(message)
         
         # Update status bar with last action (we still do this directly)
         self.status_label.setText(message.split('\n')[0])
     
     def append_to_log(self, formatted_message):
-        """Append a pre-formatted log message to the log widget."""        
+        """Append a pre-formatted log message to the log widget."""
         self.log_widget.append(formatted_message)
 
     def refresh_data(self, refresh_contexts=True):
@@ -336,8 +363,7 @@ class DockerManagerApp(QMainWindow):
                 self.refresh_worker.results_ready.connect(self.on_refresh_complete)
                 self.refresh_worker.signals.error.connect(self.on_refresh_error)
                 self.refresh_worker.signals.log.connect(self.log)
-                self.refresh_worker.start()
-                self.active_workers.append(self.refresh_worker)
+                self.thread_manager.start_thread(self.refresh_worker)
             except Exception as e:
                 error_msg = f"Failed to start refresh worker: {str(e)}"
                 self.logger.error(error_msg)
@@ -346,15 +372,28 @@ class DockerManagerApp(QMainWindow):
                 self.header_widget.enable_refresh()
 
     def on_refresh_error(self, error_msg):
-        """Handle errors from the refresh worker."""        
-        logger.error(error_msg)
+        """Handle errors from the refresh worker."""
+        logger.error(f"Refresh error: {error_msg}")
         
+        # Log the error to a central error log
+        from app.ui.utils.error_log import ErrorLog
+        ErrorLog.instance().log_error("Refresh Error", error_msg)
+        
+        # Display the error
         self.error_handler.show_error(error_msg)
-        self.status_label.setText("Error refreshing data")
+        self.status_bar.showPersistentError(f"Error refreshing data: {error_msg}")
         self.header_widget.enable_refresh()
+        
+        # For Docker-specific errors, show a detailed dialog
+        if "Docker" in error_msg or "Connection" in error_msg:
+            QTimer.singleShot(100, lambda: QMessageBox.critical(
+                self, 
+                "Docker Connection Error", 
+                f"{error_msg}\n\nPlease ensure Docker is running and properly configured."
+            ))
 
     def on_refresh_complete(self, containers, images, volumes, networks, error):
-        """Slot called when the refresh worker finishes."""        
+        """Slot called when the refresh worker finishes."""
         try:
             # Clean up worker
             if self.refresh_worker in self.active_workers:
@@ -417,7 +456,7 @@ class DockerManagerApp(QMainWindow):
             self.header_widget.enable_refresh()
 
     def update_contexts(self, contexts):
-        """Update context selector with new contexts."""        
+        """Update context selector with new contexts."""
         current_context = self.context_selector.get_current_context()
         self.context_selector.set_contexts(contexts, current_context)
     
@@ -456,7 +495,7 @@ class DockerManagerApp(QMainWindow):
             QTimer.singleShot(100, lambda: self.change_context(current_context))
 
     def change_context(self, context_name):
-        """Change the active Docker context."""        
+        """Change the active Docker context."""
         if not context_name:
             return
         
@@ -480,7 +519,7 @@ class DockerManagerApp(QMainWindow):
             self.load_contexts()
 
     def setup_menu(self):
-        """Set up application menu."""        
+        """Set up application menu."""
         menu_bar = self.menuBar()
         
         # File menu
@@ -504,7 +543,7 @@ class DockerManagerApp(QMainWindow):
         about_action.triggered.connect(self.show_about)
     
     def show_settings(self):
-        """Show the settings dialog."""        
+        """Show the settings dialog."""
         from app.ui.dialogs import SettingsDialog
         dialog = SettingsDialog(self)
         result = dialog.exec_()
@@ -538,7 +577,7 @@ class DockerManagerApp(QMainWindow):
             widget.update()
             
     def show_about(self):
-        """Show about dialog."""        
+        """Show about dialog."""
         from PyQt5.QtWidgets import QMessageBox
         QMessageBox.about(self, "About Docker Manager",
                          "<h1>Docker Manager</h1>"
@@ -548,7 +587,7 @@ class DockerManagerApp(QMainWindow):
                          "<p><a href='https://github.com/yourusername/docker-manager'>GitHub</a></p>")
 
     def on_refresh_started(self):
-        """Handle refresh started signal from the viewmodel."""        
+        """Handle refresh started signal from the viewmodel."""
         self.header_widget.disable_refresh()
         self.error_handler.clear_error()
         self.log("Refresh operation started...")
@@ -561,5 +600,61 @@ class DockerManagerApp(QMainWindow):
         self.network_tab.clear_table()
     
     def handle_refresh_completed(self, containers, images, volumes, networks, error):
-        """Handle refresh completed signal from the viewmodel."""        
+        """Handle refresh completed signal from the viewmodel."""
         self.on_refresh_complete(containers, images, volumes, networks, error)
+
+    def show_docker_available_view(self):
+        """Show the Docker available view."""
+        self.view_stack.setCurrentIndex(0)
+        self.log("Docker is now available")
+        self.status_label.setText("Connected to Docker")
+        
+    def show_docker_unavailable_view(self):
+        """Show the Docker unavailable view."""
+        self.view_stack.setCurrentIndex(1)
+        self.log("Docker is unavailable")
+        self.status_label.setText("Docker connection unavailable")
+
+    def check_docker_connection(self):
+        """Check if Docker is available and switch views accordingly."""
+        self.log("Checking Docker connection...")
+        
+        try:
+            # Try to use the main viewmodel to check Docker availability
+            if hasattr(self.main_viewmodel, 'is_docker_available'):
+                is_available = self.main_viewmodel.is_docker_available()
+            else:
+                # Fallback method if viewmodel doesn't have the method
+                is_available = self._check_docker_available()
+                
+            if is_available:
+                self.show_docker_available_view()
+                # Refresh data once we confirm Docker is available
+                QTimer.singleShot(500, self.refresh_data)
+            else:
+                self.show_docker_unavailable_view()
+        except Exception as e:
+            logger.error(f"Error checking Docker availability: {str(e)}")
+            logger.error(traceback.format_exc())
+            self.show_docker_unavailable_view()
+
+    def _check_docker_available(self):
+        """Internal method to check Docker availability as fallback."""
+        try:
+            # Try to get Docker contexts as a simple connectivity test
+            contexts, error = self.main_viewmodel.get_docker_contexts()
+            
+            # If there was an error or no contexts returned, Docker is likely not available
+            if error or not contexts:
+                logger.warning(f"Docker check failed: {error if error else 'No contexts found'}")
+                return False
+                
+            # Additional check: try to get Docker version
+            version = self.main_viewmodel.get_docker_version()
+            if version == "Unknown":
+                return False
+                
+            return True
+        except Exception as e:
+            logger.error(f"Error in Docker availability check: {str(e)}")
+            return False

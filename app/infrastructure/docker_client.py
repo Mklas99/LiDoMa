@@ -5,6 +5,7 @@ import subprocess
 import logging
 import docker
 from typing import Tuple, Optional, List, Union
+from docker.errors import DockerException
 
 class DockerCommandExecutor:
     """Execute Docker CLI commands."""
@@ -37,10 +38,13 @@ class DockerClient:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.client = None
+        self._init_error = None
+        
         try:
             self.client = docker.from_env()
             self.logger.info("Docker client initialized successfully")
         except Exception as e:
+            self._init_error = str(e)
             self.logger.error(f"Failed to initialize Docker client: {e}")
     
     def is_connected(self) -> bool:
@@ -52,7 +56,8 @@ class DockerClient:
             # Simple operation to check connectivity
             self.client.ping()
             return True
-        except Exception:
+        except Exception as e:
+            self.logger.error(f"Docker connectivity check failed: {e}")
             return False
     
     def get_version(self) -> Optional[str]:
@@ -66,3 +71,7 @@ class DockerClient:
         except Exception as e:
             self.logger.error(f"Error getting Docker version: {e}")
             return None
+            
+    def get_initialization_error(self) -> Optional[str]:
+        """Get error that occurred during initialization, if any."""
+        return self._init_error

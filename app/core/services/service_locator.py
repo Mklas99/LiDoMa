@@ -28,6 +28,9 @@ from app.core.services.image_service import ImageService
 from app.core.services.volume_service import VolumeService
 from app.core.services.network_service import NetworkService
 
+from app.ui.utils.error_manager import ErrorManager
+from app.ui.utils.thread_manager import ThreadManager
+
 class ServiceLocator:
     """Service locator to manage dependencies and services."""
     
@@ -68,6 +71,10 @@ class ServiceLocator:
             self.volume_service,
             self.network_service
         )
+        
+        # Initialize singletons
+        self.error_manager = ErrorManager.instance()
+        self.thread_manager = ThreadManager.instance()
     
     def get_docker_service(self) -> DockerService:
         """Get the Docker service facade."""
@@ -96,3 +103,11 @@ class ServiceLocator:
     def get_compose_service(self) -> DockerComposeService:
         """Get the Docker Compose service."""
         return self.compose_service
+        
+    def get_error_manager(self) -> ErrorManager:
+        """Get the error manager."""
+        return self.error_manager
+        
+    def get_thread_manager(self) -> ThreadManager:
+        """Get the thread manager."""
+        return self.thread_manager

@@ -111,3 +111,25 @@ class MainViewModel(QObject):
         ThemeManager.refresh_widget_style(component)
         
         return component
+
+    def is_docker_available(self) -> bool:
+        """Check if Docker is available and accessible.
+        
+        Returns:
+            bool: True if Docker is available, False otherwise
+        """
+        try:
+            # First check if we can get Docker contexts
+            contexts, error = self.get_docker_contexts()
+            if error:
+                return False
+            
+            # Try to get Docker version as secondary check
+            version = self.get_docker_version()
+            if version == "Unknown":
+                return False
+                
+            return True
+        except Exception as e:
+            self.log_message.emit(f"Error checking Docker availability: {str(e)}")
+            return False
