@@ -4,8 +4,9 @@ Docker client infrastructure implementation.
 import subprocess
 import logging
 import docker
-from typing import Tuple, Optional, List, Union
+from typing import Tuple, Optional, List, Union, Dict
 from docker.errors import DockerException
+from app.core.utils.docker_status_checker import DockerStatusChecker, DockerStatus
 
 class DockerCommandExecutor:
     """Execute Docker CLI commands."""
@@ -39,6 +40,7 @@ class DockerClient:
         self.logger = logging.getLogger(__name__)
         self.client = None
         self._init_error = None
+        self._status_checker = DockerStatusChecker()
         
         try:
             self.client = docker.from_env()
@@ -59,7 +61,7 @@ class DockerClient:
         except Exception as e:
             self.logger.error(f"Docker connectivity check failed: {e}")
             return False
-    
+            
     def get_version(self) -> Optional[str]:
         """Get Docker version."""
         if not self.client:
@@ -75,3 +77,20 @@ class DockerClient:
     def get_initialization_error(self) -> Optional[str]:
         """Get error that occurred during initialization, if any."""
         return self._init_error
+        
+    def get_docker_status(self) -> Tuple[DockerStatus, str]:
+        """
+        Get detailed Docker status (installed/running).
+        
+        Returns:
+            Tuple[DockerStatus, str]: Status enum and descriptive message
+        """
+        return self._status_checker.check_docker_status()
+        
+    def get_installation_instructions(self) -> Dict:
+        """Get platform-specific Docker installation instructions."""
+        return self._status_checker.get_installation_instructions()
+        
+    def get_start_instructions(self) -> Dict:
+        """Get platform-specific Docker starting instructions."""
+        return self._status_checker.get_start_instructions()

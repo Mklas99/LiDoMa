@@ -1,10 +1,13 @@
 import logging
 from PyQt5.QtWidgets import QMainWindow, QStatusBar
+from PyQt5.QtCore import QTimer
 
 from app.ui.utils.error_manager import ErrorManager
 from app.ui.utils.thread_manager import ThreadManager
 from app.ui.widgets.enhanced_status_bar import EnhancedStatusBar
 from app.ui.viewmodels.docker_availability_checker import DockerAvailabilityChecker
+from app.core.utils.docker_status_checker import DockerStatus
+from app.ui.dialogs.docker_setup_dialog import DockerSetupDialog
 
 class DockerErrorHandlingMixin:
     """Mixin class for Docker error handling in main windows."""
@@ -15,8 +18,6 @@ class DockerErrorHandlingMixin:
         Call this method after the UI is initialized.
         """
         # Ensure this is a QMainWindow
-        if not isinstance(self, QMainWindow):
-            raise TypeError("DockerErrorHandlingMixin can only be used with QMainWindow")
         
         self.logger = logging.getLogger(__name__)
         
@@ -77,6 +78,15 @@ class DockerErrorHandlingMixin:
         # Disable Docker-dependent features
         self.update_docker_feature_availability(False)
         
+    def on_docker_status_changed(self, status, message):
+        self.docker_status = status
+        self.logger.info(f"Docker status: {status.value}, {message}")
+    
+    def show_docker_setup_assistant(self):
+        dialog = DockerSetupDialog(self)
+        dialog.docker_check_requested.connect(self.check_docker_availability)
+        dialog.exec_()
+        
     def update_docker_feature_availability(self, available):
         """Update the availability of Docker-dependent features.
         
@@ -89,6 +99,9 @@ class DockerErrorHandlingMixin:
             
         if hasattr(self, 'docker_menu'):
             self.docker_menu.setEnabled(available)
+            if not available:
+                setup_action = self.docker_menu.addAction("Docker Setup Assistant")
+                setup_action.triggered.connect(self.show_docker_setup_assistant)
         
     def closeEvent(self, event):
         """Handle window close event to clean up threads."""

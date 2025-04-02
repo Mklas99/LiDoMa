@@ -400,7 +400,7 @@ class DockerManagerApp(QMainWindow):
             ))
 
     def on_refresh_complete(self, containers, images, volumes, networks, error):
-        """Slot called when the refresh worker finishes."""
+        """Slot called when the refresh worker finishes."""        
         try:
             # Clean up worker
             if self.refresh_worker in self.active_workers:
@@ -548,6 +548,13 @@ class DockerManagerApp(QMainWindow):
         # About action
         about_action = help_menu.addAction("&About")
         about_action.triggered.connect(self.show_about)
+
+        # Docker menu
+        docker_menu = menu_bar.addMenu("&Docker")
+        
+        # Docker Setup Assistant action
+        setup_action = docker_menu.addAction("Docker Setup Assistant")
+        setup_action.triggered.connect(self.show_docker_setup_assistant)
     
     def show_settings(self):
         """Show the settings dialog."""
@@ -645,6 +652,24 @@ class DockerManagerApp(QMainWindow):
             logger.error(traceback.format_exc())
             self.show_docker_unavailable_view()
 
+    def check_docker_availability(self):
+        """Check Docker availability and refresh the UI accordingly.
+        This method is connected to the docker_check_requested signal from dialogs."""
+        self.log("Manually checking Docker availability...")
+        
+        # Check if Docker is available
+        is_available = self._check_docker_available()
+        
+        # Update UI based on availability
+        if is_available:
+            self.show_docker_available_view()
+            # Refresh data once we confirm Docker is available
+            QTimer.singleShot(500, self.refresh_data)
+        else:
+            self.show_docker_unavailable_view()
+        
+        return is_available
+
     def _check_docker_available(self):
         """Internal method to check Docker availability as fallback."""
         try:
@@ -665,3 +690,9 @@ class DockerManagerApp(QMainWindow):
         except Exception as e:
             logger.error(f"Error in Docker availability check: {str(e)}")
             return False
+
+    def show_docker_setup_assistant(self):
+        from app.ui.dialogs.docker_setup_dialog import DockerSetupDialog
+        dialog = DockerSetupDialog(self)
+        dialog.docker_check_requested.connect(self.check_docker_availability)
+        dialog.exec_()

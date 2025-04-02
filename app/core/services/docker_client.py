@@ -2,6 +2,7 @@ import docker
 import subprocess
 from typing import List, Dict, Tuple, Optional, Any
 from docker.errors import NotFound, APIError
+from app.core.utils.docker_status_checker import DockerStatusChecker, DockerStatus
 
 class DockerCommandExecutor:
     """Executes Docker CLI commands with error handling."""
@@ -33,6 +34,7 @@ class DockerClient:
     
     def __init__(self):
         self._client = None
+        self._status_checker = DockerStatusChecker()
         self.initialize_client()
         
     def initialize_client(self):
@@ -69,3 +71,12 @@ class DockerClient:
         except Exception:
             output, _ = DockerCommandExecutor.run_command(["docker", "version", "--format", "{{.Server.Version}}"])
             return output if output else "Unknown"
+            
+    def get_docker_status(self) -> tuple[DockerStatus, str]:
+        return self._status_checker.check_docker_status()
+        
+    def get_installation_instructions(self) -> dict:
+        return self._status_checker.get_installation_instructions()
+        
+    def get_start_instructions(self) -> dict:
+        return self._status_checker.get_start_instructions()
