@@ -117,14 +117,15 @@ class DockerQuickInstallDialog(QDialog):
         windows_widget = QWidget()
         layout = QFormLayout(windows_widget)
         
-        # Installation type
+        # Installation type - changed options to be clearer about Docker Engine
         self.windows_install_type = QComboBox()
-        self.windows_install_type.addItem("Docker Desktop (Recommended)", "desktop")
-        self.windows_install_type.addItem("Docker Engine with WSL2", "engine")
+        self.windows_install_type.addItem("Docker Engine (Standard)", "engine")
+        self.windows_install_type.addItem("Docker Engine with WSL2 backend", "wsl2")
+        self.windows_install_type.addItem("Docker Engine + Docker CLI", "cli")
         layout.addRow("Installation Type:", self.windows_install_type)
         
-        # WSL2 option
-        self.windows_use_wsl2 = QCheckBox("Use WSL2 backend (recommended)")
+        # WSL2 option - only relevant for some installation types
+        self.windows_use_wsl2 = QCheckBox("Use WSL2 backend (recommended for better performance)")
         self.windows_use_wsl2.setChecked(True)
         layout.addRow("", self.windows_use_wsl2)
         
@@ -145,10 +146,11 @@ class DockerQuickInstallDialog(QDialog):
         mac_widget = QWidget()
         layout = QFormLayout(mac_widget)
         
-        # Installation type
+        # Installation type - changed options to focus on Docker Engine
         self.mac_install_type = QComboBox()
-        self.mac_install_type.addItem("Docker Desktop (Full features)", "desktop")
-        self.mac_install_type.addItem("Colima (Lightweight alternative)", "colima")
+        self.mac_install_type.addItem("Docker Engine with Colima (Recommended)", "colima")
+        self.mac_install_type.addItem("Docker Engine CLI only", "cli")
+        self.mac_install_type.addItem("Docker Engine + Docker Desktop GUI", "desktop")
         layout.addRow("Installation Type:", self.mac_install_type)
         
         # Auto-start option

@@ -1,0 +1,22 @@
+FROM ubuntu:latest
+
+# Install Python and required packages
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-pyqt5 \
+    sudo
+
+# Create test user
+RUN useradd -m testuser && echo "testuser ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/testuser
+
+# Set up working directory
+WORKDIR /app
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip3 install -r requirements.txt
+
+# Test script will be mounted at runtime
+USER testuser
+CMD ["python3", "tests/run_test_in_container.py"]
