@@ -653,3 +653,42 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+import unittest
+from unittest.mock import MagicMock
+from app.core.docker.installation.step_manager import InstallationStepManager
+from app.core.docker.installation.steps.windows_steps import WindowsWSL2Step, WindowsDockerEngineStep
+from app.core.docker.uninstallation.uninstallers.windows_uninstaller import WindowsDockerUninstallStep
+
+class TestDockerInstallation(unittest.TestCase):
+    def setUp(self):
+        self.worker = MagicMock()
+        self.step_manager = InstallationStepManager(self.worker)
+
+    def test_installation_steps(self):
+        """Test that installation steps execute successfully."""
+        self.step_manager.add_step(WindowsWSL2Step(self.worker))
+        self.step_manager.add_step(WindowsDockerEngineStep(self.worker))
+        success, message = self.step_manager.execute_steps()
+        self.assertTrue(success)
+        self.assertEqual(message, "Installation completed successfully")
+
+    def test_uninstallation_steps(self):
+        """Test that uninstallation steps execute successfully."""
+        uninstall_step = WindowsDockerUninstallStep(self.worker)
+        uninstall_step.execute()
+        self.worker.log_message.emit.assert_called_with("Docker Engine uninstalled successfully.")
+
+    def test_rollback_on_failure(self):
+        """Test rollback is triggered on failure."""
+        failing_step = MagicMock()
+        failing_step.execute.side_effect = Exception("Step failed")
+        failing_step.description = "Failing Step"
+        self.step_manager.add_step(failing_step)
+        success, message = self.step_manager.execute_steps()
+        self.assertFalse(success)
+        self.assertIn("Installation failed", message)
+        failing_step.rollback.assert_called_once()
+
+if __name__ == "__main__":
+    unittest.main()
